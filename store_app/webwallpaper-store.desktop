@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Web Wallpaper Store
+Comment=Browse and install WebWallpaper themes
+Exec=webwallpaper-store
+Icon=webwallpaper-store
+Terminal=false
+Categories=Graphics;
+StartupNotify=true

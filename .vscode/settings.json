@@ -1,0 +1,26 @@
+{
+  "cmake.configureOnOpen": true,
+  "cmake.buildDirectory": "${workspaceFolder}/build/dev",
+  "cmake.buildToolArgs": [],
+
+  "cmake.configureSettings": {
+    "CMAKE_BUILD_TYPE": "Debug",
+    "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+  },
+
+  "cmake.parallelJobs": 0,
+  "cmake.enableCacheExternalTool": true,
+
+  "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+  "C_Cpp.intelliSenseMode": "linux-gcc-x64",
+  "C_Cpp.formatting": "clangFormat",
+
+  "files.associations": {
+    "*.theme": "ini",
+    "*.qrc": "xml"
+  },
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+
+  "editor.formatOnSave": true
+}

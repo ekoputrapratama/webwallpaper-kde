@@ -1,0 +1,12 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="/">
+        <file>icons/app.png</file>
+        <file>themes/demo/demo.theme</file>
+        <file>themes/demo/index.html</file>
+        <file>themes/demo/thumbnail.png</file>
+    </qresource>
+    <qresource prefix="/config">
+        <file alias="config.env">config/config.env</file>
+    </qresource>
+</RCC>

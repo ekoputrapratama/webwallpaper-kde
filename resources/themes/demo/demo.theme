@@ -1,0 +1,7 @@
+[Theme]
+name=demo
+description=A simple animated WebGL gradient wallpaper
+author=WebWallpaper
+version=1.0
+thumbnail=thumbnail.png
+entry=index.html

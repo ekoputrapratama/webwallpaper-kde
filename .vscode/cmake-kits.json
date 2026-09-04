@@ -1,0 +1,9 @@
+[
+    {
+        "name": "GCC (detect cmake)",
+        "preferredGenerator": {
+            "name": "Unix Makefiles"
+        },
+        "environmentVariables": {}
+    }
+]

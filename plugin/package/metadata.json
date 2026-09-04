@@ -1,0 +1,22 @@
+{
+    "KPackageStructure": "Plasma/Wallpaper",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "user@example.com",
+                "Name": "WebWallpaper"
+            }
+        ],
+        "Id": "webwallpaper",
+        "Name": "WebWallpaper",
+        "Description": "Live HTML/WebGL wallpapers rendered with Qt WebEngine",
+        "Icon": "preferences-desktop-wallpaper",
+        "Version": "1.0",
+        "License": "GPLv2+",
+        "Website": "https://example.com/webwallpaper"
+    },
+    "X-KDE-ParentApp": "org.kde.plasmashell",
+    "X-Plasma-API-Minimum-Version": "6.0",
+    "X-Plasma-MainScript": "ui/main.qml",
+    "X-KDE-PluginInfo-Name": "webwallpaper"
+}
