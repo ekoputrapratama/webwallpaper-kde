@@ -21,7 +21,7 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 STAGING="${SCRIPT_DIR}/staging"
 DIST="${SCRIPT_DIR}/dist"
 BUILD_ROOT="${ROOT_DIR}/build/deb"
-VERSION="1.0"
+VERSION=$1
 ARCH="amd64"
 
 SKIP_BUILD=false
