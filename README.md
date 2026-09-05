@@ -78,7 +78,30 @@ Install these from the VSCode marketplace:
 
 > Note: configure the **CMake Tools** extension's kit to use your `C++` toolchain if prompted.
 
-## Installing the wallpaper plugin
+## Installing
+
+### Arch Linux (AUR)
+
+Available as two separate packages on the AUR under the [`webwallpaper-kde`](https://aur.archlinux.org/pkgbase/webwallpaper-kde) package base:
+
+| Package | Description |
+|---------|-------------|
+| `webwallpaper-plugin` | KDE Plasma 6 wallpaper plugin (QML module + wallpaper package + demo themes) |
+| `webwallpaper-store` | Theme store app (binary + icon + desktop entry) |
+
+Install both with your preferred AUR helper:
+
+```bash
+# With yay
+yay -S webwallpaper-plugin webwallpaper-store
+
+# With paru
+paru -S webwallpaper-plugin webwallpaper-store
+```
+
+Then restart plasmashell and pick your theme (see [Post-install setup](#post-install-setup) below).
+
+### From source (user-local)
 
 The plugin is a separate CMake project under `plugin/`. `install-wallpaper.sh` builds and installs it to user-local paths (no root needed):
 
@@ -87,13 +110,15 @@ The plugin is a separate CMake project under `plugin/`. `install-wallpaper.sh` b
 ./install-wallpaper.sh --system     # system-wide (requires root)
 ```
 
-Then restart plasmashell:
+### Post-install setup
+
+Restart plasmashell:
 
 ```bash
 systemctl --user restart plasma-plasmashell.service
 ```
 
-Finally: **Right-click desktop → Configure Desktop and Wallpaper → Wallpaper type: WebWallpaper**, and pick a theme.
+Then: **Right-click desktop → Configure Desktop and Wallpaper → Wallpaper type: WebWallpaper**, and pick a theme.
 
 ## Packages (.deb)
 
