@@ -12,6 +12,8 @@ class ThemeModel : public QAbstractListModel
     Q_OBJECT
     QML_ELEMENT
 
+    Q_PROPERTY(QString defaultThemePath READ defaultThemePath NOTIFY defaultThemePathChanged)
+
 public:
     enum Roles {
         NameRole = Qt::UserRole + 1,
@@ -24,9 +26,14 @@ public:
 
     explicit ThemeModel(QObject *parent = nullptr);
 
+    QString defaultThemePath() const;
+
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
     QVariant data(const QModelIndex &index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
+
+signals:
+    void defaultThemePathChanged();
 
 private:
     struct Theme {
@@ -38,6 +45,8 @@ private:
     };
 
     void scanThemes();
+    void scanDir(const QString &dirPath);
 
     QList<Theme> m_themes;
+    QString m_defaultThemePath;
 };

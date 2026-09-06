@@ -22,7 +22,17 @@ ColumnLayout {
         id: themeModel
     }
 
-    Component.onCompleted: console.log("[webwallpaper-config] loaded, themes=" + themeModel.rowCount())
+    Component.onCompleted: {
+        console.log("[webwallpaper-config] loaded, themes=" + themeModel.rowCount())
+        // First run: nothing configured yet — pre-select the bundled default
+        // theme so the wallpaper has something to load out of the box.
+        if (root.cfg_themePath.length === 0 && themeModel.rowCount() > 0) {
+            var defaultPath = themeModel.defaultThemePath
+            if (defaultPath.length > 0) {
+                root.cfg_themePath = defaultPath
+            }
+        }
+    }
 
     onCfg_themePathChanged: {
         selectCurrent()

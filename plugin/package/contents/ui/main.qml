@@ -8,6 +8,13 @@ WallpaperItem {
     anchors.fill: parent
 
     property string themePath: root.configuration.themePath || ""
+    // Fall back to the bundled demo theme when nothing is configured yet, so a
+    // fresh install renders a wallpaper immediately instead of a placeholder.
+    readonly property string activeTheme: {
+        if (root.themePath.length > 0)
+            return root.themePath
+        return themeModel.defaultThemePath
+    }
     property bool isPaused: false
     property url pausedScreenshot
     property var pausedGrabResult: null
@@ -116,7 +123,7 @@ WallpaperItem {
     Timer {
         id: fullscreenPoll
         interval: 500
-        running: root.themePath.length > 0
+        running: root.activeTheme.length > 0
         repeat: true
         property bool lastValue: false
         onTriggered: {
@@ -133,7 +140,7 @@ WallpaperItem {
     }
 
     function entryFile() {
-        let dir = root.themePath
+        let dir = root.activeTheme
         if (!dir || dir.length === 0) {
             return ""
         }
@@ -144,6 +151,10 @@ WallpaperItem {
             dir = dir.slice(0, -1)
         }
         return "file://" + dir + "/index.html"
+    }
+
+    ThemeModel {
+        id: themeModel
     }
 
     WebEngineProfile {
@@ -163,9 +174,9 @@ WallpaperItem {
     WebEngineView {
         id: view
         anchors.fill: parent
-        visible: root.themePath.length > 0 && !root.isPaused
+        visible: root.activeTheme.length > 0 && !root.isPaused
         profile: wpProfile
-        url: root.themePath.length > 0 ? entryFile() : ""
+        url: root.activeTheme.length > 0 ? entryFile() : ""
         backgroundColor: "#111111"
         settings.javascriptEnabled: true
         settings.webGLEnabled: true
@@ -188,13 +199,16 @@ WallpaperItem {
 
     Rectangle {
         anchors.fill: parent
-        visible: root.themePath.length === 0
+        visible: root.activeTheme.length === 0
         color: "#111111"
         Text {
-            anchors.centerIn: parent
+            anchors.fill: parent
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
             text: "Select a WebWallpaper theme in wallpaper settings"
             color: "#cccccc"
             font.pixelSize: 14
+            wrapMode: Text.Wrap
         }
     }
 }
