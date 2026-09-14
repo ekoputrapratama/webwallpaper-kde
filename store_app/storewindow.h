@@ -31,6 +31,7 @@ private slots:
     void onFetchError(const QString &error);
     void onScrollRangeChanged(int min, int max);
     void onImageFetched(const QUrl &url, const QByteArray &data);
+    void onImageFailed(const QUrl &url);
     void onInstallClicked(const QString &themeId, const ThemeData &theme);
     void onLikeClicked(const QString &themeId, const ThemeData &theme);
     void onDownloadProgress(qint64 received, qint64 total);
@@ -38,7 +39,6 @@ private slots:
     void onDownloadError(const QString &error);
 
 private:
-    ThemeData parseTheme(const QJsonObject &fields) const;
     bool isInstalled(const QString &themeId) const;
     void clearGrid();
     void addCard(const QString &themeId, const ThemeData &theme);

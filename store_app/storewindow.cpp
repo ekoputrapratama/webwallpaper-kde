@@ -2,6 +2,7 @@
 #include "networkmanager.h"
 #include "configmanager.h"
 #include "themecard.h"
+#include "firestore.h"
 
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -128,6 +129,8 @@ StoreWindow::StoreWindow(NetworkManager *netMgr, ConfigManager *config, QWidget 
             this, &StoreWindow::onFetchError);
     connect(m_netMgr, &NetworkManager::imageFetched,
             this, &StoreWindow::onImageFetched);
+    connect(m_netMgr, &NetworkManager::imageFailed,
+            this, &StoreWindow::onImageFailed);
     connect(m_netMgr, &NetworkManager::downloadProgress,
             this, &StoreWindow::onDownloadProgress);
     connect(m_netMgr, &NetworkManager::downloadFinished,
@@ -139,38 +142,6 @@ StoreWindow::StoreWindow(NetworkManager *netMgr, ConfigManager *config, QWidget 
             this, &StoreWindow::onScrollRangeChanged);
 
     onFetchThemes();
-}
-
-ThemeData StoreWindow::parseTheme(const QJsonObject &fields) const
-{
-    ThemeData theme;
-    const auto str = [&fields](const char *key) -> QString {
-        return fields[key].toObject()["stringValue"].toString();
-    };
-    theme.name = str("name");
-    theme.description = str("description");
-    theme.author = str("author");
-    theme.thumbnailUrl = QUrl(str("thumbnail_url"));
-    theme.downloadUrl = QUrl(str("wallpaper_url"));
-    theme.donateUrl = QUrl(str("donation_url"));
-    theme.donationLabel = str("donation_label");
-    theme.uid = str("uid");
-    theme.downloads = fields["downloads"].toObject()["integerValue"].toString().toLongLong();
-    theme.likes = fields["likes"].toObject()["integerValue"].toString().toLongLong();
-
-    const QJsonArray tags = fields["tags"].toObject()["arrayValue"].toObject()["values"].toArray();
-    for (const QJsonValue &tag : tags)
-        theme.tags << tag.toObject()["stringValue"].toString();
-
-    return theme;
-}
-
-static QString slugify(const QString &name)
-{
-    QString slug = name.toLower();
-    slug.replace(QRegularExpression(QStringLiteral("[^a-z0-9]+")), QStringLiteral("-"));
-    slug.remove(QRegularExpression(QStringLiteral("^-|-$")));
-    return slug.isEmpty() ? QStringLiteral("theme") : slug;
 }
 
 void StoreWindow::onFetchThemes()
@@ -207,7 +178,7 @@ void StoreWindow::onThemePageReceived(const QJsonDocument &doc, const QString &n
         QJsonObject obj = val.toObject();
         QJsonObject fields = obj["fields"].toObject();
 
-        ThemeData theme = parseTheme(fields);
+        ThemeData theme = ::parseTheme(fields);
         if (!theme.isValid())
             continue;
 
@@ -271,6 +242,20 @@ void StoreWindow::onImageFetched(const QUrl &url, const QByteArray &data)
     for (ThemeCard *card : m_cards) {
         if (card->themeId() == id) {
             card->setThumbnail(data);
+            return;
+        }
+    }
+}
+
+void StoreWindow::onImageFailed(const QUrl &url)
+{
+    QString id = m_themeIdByThumbUrl.value(url);
+    if (id.isEmpty())
+        return;
+
+    for (ThemeCard *card : m_cards) {
+        if (card->themeId() == id) {
+            card->setThumbnailFailed();
             return;
         }
     }

@@ -103,3 +103,11 @@ else()
 endif()
 
 message(STATUS "WebWallpaper Plasma wallpaper plugin id: ${PLUGIN_ID}")
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+include(CTest)
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()

@@ -12,6 +12,7 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets Network)
 set(SOURCES
     store_app/main.cpp
     store_app/configmanager.cpp
+    store_app/firestore.cpp
     store_app/networkmanager.cpp
     store_app/storewindow.cpp
     store_app/themecard.cpp
@@ -19,6 +20,7 @@ set(SOURCES
 
 set(HEADERS
     store_app/configmanager.h
+    store_app/firestore.h
     store_app/networkmanager.h
     store_app/storewindow.h
     store_app/themecard.h
@@ -57,3 +59,11 @@ install(FILES resources/icons/app.png
 
 install(FILES store_app/webwallpaper-store.desktop
         DESTINATION share/applications)
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+include(CTest)
+if(BUILD_TESTING)
+    add_subdirectory(store_app/tests)
+endif()

@@ -4,6 +4,7 @@
 #include <QDirIterator>
 #include <QFileInfo>
 #include <QSettings>
+#include <QtGlobal>
 #include <utility>
 
 ThemeModel::ThemeModel(QObject *parent)
@@ -63,30 +64,38 @@ void ThemeModel::scanThemes()
     beginResetModel();
     m_themes.clear();
 
-    // Theme dirs populated by cmake/deb installs and by the store app.
-    const QStringList dirs = {
-        QStringLiteral("/usr/share/webwallpaper/themes"),
-        QDir::homePath() + QStringLiteral("/.local/share/webwallpaper/themes"),
-    };
-
-    for (const QString &dirPath : dirs)
-        scanDir(dirPath);
-
-    // Fallback: the demo theme bundled INSIDE the wallpaper package itself
-    // (plugin/package/contents/themes). This covers the KDE Store / bare
-    // wallpaper-package install where the standalone themes dirs above are
-    // never created. Only consulted when the main dirs yielded nothing, so the
-    // bundled copy never shows up twice next to a normally-installed one.
-    if (m_themes.isEmpty()) {
-        const QString pluginId = QStringLiteral("webwallpaper");
-        const QStringList packageDirs = {
-            QDir::homePath() + QStringLiteral("/.local/share/plasma/wallpapers/") + pluginId,
-            QDir::homePath() + QStringLiteral("/.local/share/wallpapers/") + pluginId,
-            QStringLiteral("/usr/share/plasma/wallpapers/") + pluginId,
-            QStringLiteral("/usr/share/wallpapers/") + pluginId,
+    // Test hook: when set, scan exactly this directory and nothing else so
+    // unit tests are deterministic regardless of what is installed on the
+    // machine. Never set in normal operation.
+    const QByteArray overrideDir = qgetenv("WEBWALLPAPER_THEMES_DIR");
+    if (!overrideDir.isEmpty()) {
+        scanDir(QString::fromLocal8Bit(overrideDir));
+    } else {
+        // Theme dirs populated by cmake/deb installs and by the store app.
+        const QStringList dirs = {
+            QStringLiteral("/usr/share/webwallpaper/themes"),
+            QDir::homePath() + QStringLiteral("/.local/share/webwallpaper/themes"),
         };
-        for (const QString &dirPath : packageDirs)
-            scanDir(dirPath + QStringLiteral("/contents/themes"));
+
+        for (const QString &dirPath : dirs)
+            scanDir(dirPath);
+
+        // Fallback: the demo theme bundled INSIDE the wallpaper package itself
+        // (plugin/package/contents/themes). This covers the KDE Store / bare
+        // wallpaper-package install where the standalone themes dirs above are
+        // never created. Only consulted when the main dirs yielded nothing, so the
+        // bundled copy never shows up twice next to a normally-installed one.
+        if (m_themes.isEmpty()) {
+            const QString pluginId = QStringLiteral("webwallpaper");
+            const QStringList packageDirs = {
+                QDir::homePath() + QStringLiteral("/.local/share/plasma/wallpapers/") + pluginId,
+                QDir::homePath() + QStringLiteral("/.local/share/wallpapers/") + pluginId,
+                QStringLiteral("/usr/share/plasma/wallpapers/") + pluginId,
+                QStringLiteral("/usr/share/wallpapers/") + pluginId,
+            };
+            for (const QString &dirPath : packageDirs)
+                scanDir(dirPath + QStringLiteral("/contents/themes"));
+        }
     }
 
     // A sane default for "nothing configured yet": prefer the bundled demo

@@ -9,7 +9,10 @@
 #include <QUrl>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QProcess>
+#include <QTimer>
+#include <QCryptographicHash>
 
 NetworkManager::NetworkManager(QObject *parent)
     : QObject(parent)
@@ -95,17 +98,110 @@ void NetworkManager::downloadTheme(const QString &url, const QString &destDir, c
 
 void NetworkManager::fetchImage(const QUrl &url)
 {
-    QNetworkRequest req{url};
-    req.setRawHeader("Accept", "image/*");
-    QNetworkReply *reply = m_nam.get(req);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, url]() {
-        reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            emit imageFailed(url);
-            return;
+    if (!url.isValid())
+        return;
+
+    if (m_pendingImageUrls.contains(url))
+        return;
+
+    m_pendingImageUrls.insert(url);
+    m_thumbnailQueue.enqueue(url);
+    processNextThumbnail();
+}
+
+void NetworkManager::processNextThumbnail()
+{
+    if (m_activeThumbnailReply)
+        return;
+
+    while (!m_thumbnailQueue.isEmpty()) {
+        const QUrl url = m_thumbnailQueue.dequeue();
+        m_pendingImageUrls.remove(url);
+
+        // Serve from the on-disk cache first so revisits/refreshes are instant.
+        const QString cachedPath = thumbnailCachePath(url);
+        if (!cachedPath.isEmpty()) {
+            QFile cached(cachedPath);
+            if (cached.open(QIODevice::ReadOnly)) {
+                const QByteArray data = cached.readAll();
+                if (!data.isEmpty()) {
+                    emit imageFetched(url, data);
+                    continue;
+                }
+            }
         }
-        emit imageFetched(url, reply->readAll());
-    });
+
+        QNetworkRequest req{url};
+        req.setRawHeader("Accept", "image/*");
+        QNetworkReply *reply = m_nam.get(req);
+
+        m_activeThumbnailReply = reply;
+        m_activeThumbnailUrl = url;
+
+        // Guard against a stalled or dead-slow transfer so a card is never
+        // left on "Loading..." indefinitely.
+        auto *timeout = new QTimer(this);
+        timeout->setSingleShot(true);
+        timeout->setInterval(20000);
+        m_thumbnailTimeout = timeout;
+        connect(timeout, &QTimer::timeout, this, [this, reply]() {
+            if (reply == m_activeThumbnailReply)
+                reply->abort(); // finished() follows with OperationCanceledError
+        });
+        timeout->start();
+
+        connect(reply, &QNetworkReply::finished, this, [this, reply, url, timeout]() {
+            timeout->stop();
+            timeout->deleteLater();
+            if (m_thumbnailTimeout == timeout)
+                m_thumbnailTimeout = nullptr;
+            if (m_activeThumbnailReply == reply)
+                m_activeThumbnailReply = nullptr;
+            reply->deleteLater();
+
+            if (reply->error() != QNetworkReply::NoError) {
+                emit imageFailed(url);
+                processNextThumbnail();
+                return;
+            }
+
+            const QByteArray data = reply->readAll();
+            if (!data.isEmpty())
+                saveThumbnailCache(url, data);
+            emit imageFetched(url, data);
+            processNextThumbnail();
+        });
+        return;
+    }
+}
+
+QString NetworkManager::thumbnailCacheDir()
+{
+    return QDir::homePath() + QStringLiteral("/.cache/webwallpaper/thumbs");
+}
+
+QString NetworkManager::thumbnailCachePath(const QUrl &url)
+{
+    if (!url.isValid())
+        return {};
+    const QString name = QString::fromLatin1(
+        QCryptographicHash::hash(url.toEncoded(), QCryptographicHash::Md5).toHex());
+    const QString path = thumbnailCacheDir() + QLatin1Char('/') + name;
+    return QFileInfo::exists(path) ? path : QString();
+}
+
+void NetworkManager::saveThumbnailCache(const QUrl &url, const QByteArray &data)
+{
+    if (!url.isValid() || data.isEmpty())
+        return;
+    const QString path = thumbnailCacheDir() + QLatin1Char('/') + QString::fromLatin1(
+        QCryptographicHash::hash(url.toEncoded(), QCryptographicHash::Md5).toHex());
+    QDir().mkpath(thumbnailCacheDir());
+    QFile file(path);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        file.write(data);
+        file.close();
+    }
 }
 
 void NetworkManager::incrementDownload(const QString &documentPath, const QString &apiKey, const QString &projectId, const QString &databaseId)

@@ -20,6 +20,7 @@ public:
     QString themeId() const { return m_themeId; }
     void setThemeId(const QString &id) { m_themeId = id; }
     void setThumbnail(const QByteArray &imageData);
+    void setThumbnailFailed();
     void setInstalled(bool installed);
     void setLikes(qint64 likes);
 

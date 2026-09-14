@@ -79,6 +79,7 @@ ThemeCard::ThemeCard(const ThemeData &theme, QWidget *parent)
         .arg(QLocale().toString(m_theme.likes)), body);
     likeLabel->setObjectName("likeLabel");
     likeLabel->setStyleSheet("font-size: 11px; color: #e05a7a; background: transparent;");
+    m_likeLabel = likeLabel;
     stats->addWidget(likeLabel);
     bodyLayout->addLayout(stats);
 
@@ -160,6 +161,14 @@ void ThemeCard::setInstalled(bool installed)
     m_installBtn->setText(installed ? QStringLiteral("Installed") : QStringLiteral("Install"));
 }
 
+void ThemeCard::setThumbnailFailed()
+{
+    clearMovie();
+    m_thumbnailLabel->setPixmap(QPixmap());
+    m_thumbnailLabel->setText(QStringLiteral("No preview"));
+    m_thumbnailData.clear();
+}
+
 void ThemeCard::clearMovie()
 {
     if (m_movie) {
@@ -205,7 +214,9 @@ void ThemeCard::setThumbnail(const QByteArray &imageData)
         buffer->seek(0);
         if (!frame.isValid() || frame.isEmpty())
             frame = QSize(m_thumbnailLabel->width(), m_thumbnailLabel->height());
-        frame.scale(m_thumbnailLabel->width(), m_thumbnailLabel->height(), Qt::KeepAspectRatio);
+        // Expand-and-crop so the animation always covers the whole thumbnail
+        // area, matching the static-image path below.
+        frame.scale(m_thumbnailLabel->width(), m_thumbnailLabel->height(), Qt::KeepAspectRatioByExpanding);
 
         auto *movie = new QMovie(buffer, QByteArray(), this);
         movie->setScaledSize(frame);
