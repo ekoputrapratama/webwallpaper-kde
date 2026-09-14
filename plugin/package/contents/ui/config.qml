@@ -96,4 +96,28 @@ ColumnLayout {
             }
         }
     }
+
+    Kirigami.Separator {
+        Layout.fillWidth: true
+    }
+
+    RowLayout {
+        Layout.fillWidth: true
+        Layout.leftMargin: Kirigami.Units.smallSpacing
+        Layout.rightMargin: Kirigami.Units.smallSpacing
+        Layout.bottomMargin: Kirigami.Units.smallSpacing
+        spacing: Kirigami.Units.smallSpacing
+
+        QtControls2.Button {
+            text: qsTr("Get More Themes...")
+            icon.name: "get-hot-new-stuff"
+            onClicked: Qt.openUrlExternally("https://aur.archlinux.org/packages/webwallpaper-store")
+        }
+
+        QtControls2.Button {
+            text: qsTr("Open Theme Store")
+            icon.name: "webwallpaper-store"
+            onClicked: Qt.openUrlExternally("webwallpaper://store")
+        }
+    }
 }

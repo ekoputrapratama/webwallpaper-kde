@@ -2,8 +2,10 @@
 Type=Application
 Name=Web Wallpaper Store
 Comment=Browse and install WebWallpaper themes
-Exec=webwallpaper-store
+Exec=webwallpaper-store %U
 Icon=webwallpaper-store
 Terminal=false
 Categories=Graphics;
+MimeType=x-scheme-handler/webwallpaper;
 StartupNotify=true
+X-KDE-Protocols=webwallpaper;

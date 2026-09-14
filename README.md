@@ -82,12 +82,12 @@ Install these from the VSCode marketplace:
 
 ### Arch Linux (AUR)
 
-Available as two separate packages on the AUR under the [`webwallpaper-kde`](https://aur.archlinux.org/pkgbase/webwallpaper-kde) package base:
+Available as two separate packages on the AUR:
 
 | Package | Description |
 |---------|-------------|
-| `webwallpaper-plugin` | KDE Plasma 6 wallpaper plugin (QML module + wallpaper package + demo themes) |
-| `webwallpaper-store` | Theme store app (binary + icon + desktop entry) |
+| [`webwallpaper-plugin`](https://aur.archlinux.org/packages/webwallpaper-plugin) | KDE Plasma 6 wallpaper plugin (QML module + wallpaper package + demo themes) |
+| [`webwallpaper-store`](https://aur.archlinux.org/packages/webwallpaper-store) | Theme store app (binary + icon + desktop entry) |
 
 Install both with your preferred AUR helper:
 
