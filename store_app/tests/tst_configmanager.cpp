@@ -18,7 +18,13 @@ class TestConfigManager : public QObject
     static void writeEnvFile(const QString &path, const QString &contents)
     {
         QFile f(path);
-        Q_ASSERT(f.open(QIODevice::WriteOnly | QIODevice::Text));
+        // N.B. Never wrap f.open() inside Q_ASSERT(): in release builds
+        // Q_ASSERT(cond) becomes `false && (cond)`, which short-circuits and
+        // the open() call is silently never executed ("device not open").
+        const bool opened = f.open(QIODevice::WriteOnly | QIODevice::Text);
+        Q_ASSERT(opened);
+        if (!opened)
+            return;
         f.write(contents.toUtf8());
         f.close();
     }

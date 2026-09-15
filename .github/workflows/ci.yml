@@ -72,6 +72,22 @@ jobs:
             qt6-tools-dev qt6-tools-dev-tools \
             libkf6windowsystem-dev kwayland-dev \
             libplasma-dev
+      - name: Generate Firebase config from secrets
+        env:
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_DATABASE_ID: ${{ secrets.FIREBASE_DATABASE_ID }}
+        run: |
+          if [ -n "${FIREBASE_API_KEY}" ] && [ -n "${FIREBASE_PROJECT_ID}" ]; then
+            cat > resources/config/config.env <<EOF
+            FIREBASE_API_KEY=${FIREBASE_API_KEY}
+            FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
+            FIREBASE_DATABASE_ID=${FIREBASE_DATABASE_ID}
+            EOF
+            echo "Generated resources/config/config.env from GitHub secrets"
+          else
+            echo "No FIREBASE_* secrets set; keeping placeholder config.env"
+          fi
       - name: Build .deb packages
         run: |
           VERSION="${GITHUB_REF#refs/tags/v}"
