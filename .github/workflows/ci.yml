@@ -79,11 +79,9 @@ jobs:
           FIREBASE_DATABASE_ID: ${{ secrets.FIREBASE_DATABASE_ID }}
         run: |
           if [ -n "${FIREBASE_API_KEY}" ] && [ -n "${FIREBASE_PROJECT_ID}" ]; then
-            cat > resources/config/config.env <<EOF
-            FIREBASE_API_KEY=${FIREBASE_API_KEY}
-            FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
-            FIREBASE_DATABASE_ID=${FIREBASE_DATABASE_ID}
-            EOF
+            printf 'FIREBASE_API_KEY=%s\nFIREBASE_PROJECT_ID=%s\nFIREBASE_DATABASE_ID=%s\n' \
+              "${FIREBASE_API_KEY}" "${FIREBASE_PROJECT_ID}" "${FIREBASE_DATABASE_ID}" \
+              > resources/config/config.env
             echo "Generated resources/config/config.env from GitHub secrets"
           else
             echo "No FIREBASE_* secrets set; keeping placeholder config.env"
