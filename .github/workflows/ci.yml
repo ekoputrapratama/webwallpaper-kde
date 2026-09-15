@@ -22,7 +22,7 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
-            cmake g++ qt6-base-dev qt6-base-dev-tools
+            make cmake g++ qt6-base-dev qt6-base-dev-tools
       - name: Configure
         run: cmake -S . -B build/dev -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
       - name: Build
@@ -40,10 +40,10 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
-            cmake g++ extra-cmake-modules \
+            make cmake g++ extra-cmake-modules \
             qt6-base-dev qt6-base-dev-tools qt6-declarative-dev \
             qt6-tools-dev qt6-tools-dev-tools \
-            libkf6windowsystem-dev libkf6waylandclient-dev \
+            libkf6windowsystem-dev kwayland-dev \
             libplasma-dev
       - name: Configure
         run: cmake -S plugin -B build/plugin \
@@ -67,10 +67,10 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
-            cmake g++ extra-cmake-modules fakeroot dpkg-dev \
+            make cmake g++ extra-cmake-modules fakeroot dpkg-dev \
             qt6-base-dev qt6-base-dev-tools qt6-declarative-dev \
             qt6-tools-dev qt6-tools-dev-tools \
-            libkf6windowsystem-dev libkf6waylandclient-dev \
+            libkf6windowsystem-dev kwayland-dev \
             libplasma-dev
       - name: Build .deb packages
         run: |
