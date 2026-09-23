@@ -13,6 +13,7 @@
 #include <QProcess>
 #include <QTimer>
 #include <QCryptographicHash>
+#include <QDebug>
 
 NetworkManager::NetworkManager(QObject *parent)
     : QObject(parent)
@@ -216,26 +217,33 @@ void NetworkManager::incrementLikes(const QString &documentPath, const QString &
 
 void NetworkManager::incrementField(const QString &documentPath, const QString &field, const QString &apiKey, const QString &projectId, const QString &databaseId)
 {
+    if (documentPath.isEmpty() || apiKey.isEmpty() || projectId.isEmpty()) {
+        qWarning() << "incrementField: missing document path, api key, or project id";
+        return;
+    }
+
     QString db = databaseId.isEmpty() ? QStringLiteral("(default)") : databaseId;
 
     QString url = QString("https://firestore.googleapis.com/v1/projects/%1/databases/%2/documents:commit?key=%3")
         .arg(projectId, db, apiKey);
 
+    // A plain numeric increment is a field *transform*, expressed with the
+    // standalone `transform` operation (DocumentTransform). Using `update` +
+    // `updateMask` + `updateTransforms` instead is rejected by the REST API
+    // (and the old code also swallowed any failure silently).
     QJsonObject increment;
-    increment[QStringLiteral("integerValue")] = 1;
+    increment[QStringLiteral("integerValue")] = 1; // serialized as Json number; Firestore accepts "1" or number
+
     QJsonObject fieldTransform;
     fieldTransform[QStringLiteral("fieldPath")] = field;
     fieldTransform[QStringLiteral("increment")] = increment;
 
-    QJsonObject update;
-    update[QStringLiteral("name")] = documentPath;
-    QJsonObject updateMask;
-    updateMask[QStringLiteral("fieldPaths")] = QJsonArray{ field };
+    QJsonObject transform;
+    transform[QStringLiteral("document")] = documentPath;
+    transform[QStringLiteral("fieldTransforms")] = QJsonArray{ fieldTransform };
 
     QJsonObject write;
-    write[QStringLiteral("update")] = update;
-    write[QStringLiteral("updateMask")] = updateMask;
-    write[QStringLiteral("updateTransforms")] = QJsonArray{ fieldTransform };
+    write[QStringLiteral("transform")] = transform;
 
     QJsonObject body;
     body[QStringLiteral("writes")] = QJsonArray{ write };
@@ -247,8 +255,13 @@ void NetworkManager::incrementField(const QString &documentPath, const QString &
 
     connect(reply, &QNetworkReply::finished, this, [this, reply, documentPath]() {
         reply->deleteLater();
-        if (reply->error() == QNetworkReply::NoError)
+        if (reply->error() == QNetworkReply::NoError) {
             emit downloadCountIncremented(documentPath);
+        } else {
+            qWarning() << "Firestore increment failed for" << documentPath
+                       << ":" << reply->errorString()
+                       << QString::fromUtf8(reply->readAll().left(512));
+        }
     });
 }
 

@@ -33,6 +33,7 @@ private slots:
     void onImageFetched(const QUrl &url, const QByteArray &data);
     void onImageFailed(const QUrl &url);
     void onInstallClicked(const QString &themeId, const ThemeData &theme);
+    void onRemoveClicked(const QString &themeId, const ThemeData &theme);
     void onLikeClicked(const QString &themeId, const ThemeData &theme);
     void onDownloadProgress(qint64 received, qint64 total);
     void onDownloadFinished(const QString &themeDir);

@@ -13,6 +13,9 @@ plugin/package/*.zip
 packaging/deb/dist/
 packaging/deb/staging/
 
+# KDE Store archive artifacts
+packaging/kde-store/dist/
+
 # Do NOT commit the Firebase credentials
 .env
 .env.local

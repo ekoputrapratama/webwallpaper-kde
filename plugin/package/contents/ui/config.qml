@@ -60,7 +60,7 @@ ColumnLayout {
         QtControls2.Button {
             text: qsTr("Get More Themes...")
             icon.name: "get-hot-new-stuff"
-            onClicked: Qt.openUrlExternally("https://aur.archlinux.org/packages/webwallpaper-store")
+            onClicked: Qt.openUrlExternally("https://github.com/ekoputrapratama/webwallpaper-kde#arch-linux-aur")
         }
 
         QtControls2.Button {

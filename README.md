@@ -161,6 +161,10 @@ entry=index.html
 
 ### Creating a theme
 
+No-code way: use [**WebWallpaper Theme Studio**](https://webwallpaper-theme-studio.vercel.app) to design, preview and export a theme without touching files by hand.
+
+The manual route:
+
 ```bash
 mkdir -p ~/.local/share/webwallpaper/themes/my-theme
 cd ~/.local/share/webwallpaper/themes/my-theme

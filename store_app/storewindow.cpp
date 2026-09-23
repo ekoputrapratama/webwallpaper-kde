@@ -15,6 +15,7 @@
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <QApplication>
+#include <QMessageBox>
 
 StoreWindow::StoreWindow(NetworkManager *netMgr, ConfigManager *config, QWidget *parent)
     : QDialog(parent)
@@ -271,6 +272,34 @@ void StoreWindow::onInstallClicked(const QString &themeId, const ThemeData &them
     m_netMgr->downloadTheme(theme.downloadUrl.toString(), destDir, m_selectedThemeId);
 }
 
+void StoreWindow::onRemoveClicked(const QString &themeId, const ThemeData &theme)
+{
+    const QString themeDir = m_config->themesUserDir() + "/" + themeId;
+    const QString displayName = theme.name.isEmpty() ? themeId : theme.name;
+
+    auto answer = QMessageBox::question(
+        this, QStringLiteral("Remove theme"),
+        QStringLiteral("Uninstall \"%1\"? This deletes the theme files from %2.")
+            .arg(displayName, themeDir),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    if (answer != QMessageBox::Yes)
+        return;
+
+    QDir dir(themeDir);
+    if (dir.exists() && !dir.removeRecursively()) {
+        m_statusLabel->setText("Failed to remove " + displayName);
+        return;
+    }
+
+    for (ThemeCard *card : m_cards) {
+        if (card->themeId() == themeId) {
+            card->setInstalled(false);
+            break;
+        }
+    }
+    m_statusLabel->setText(displayName + " removed.");
+}
+
 void StoreWindow::onLikeClicked(const QString &themeId, const ThemeData &theme)
 {
     // Optimistically bump the visible count, then persist the increment.
@@ -351,6 +380,9 @@ void StoreWindow::addCard(const QString &themeId, const ThemeData &theme)
     });
     connect(card, &ThemeCard::donateRequested, this, [](const QUrl &url) {
         QDesktopServices::openUrl(url);
+    });
+    connect(card, &ThemeCard::removeRequested, this, [this](const QString &id, const ThemeData &t) {
+        onRemoveClicked(id, t);
     });
     connect(card, &ThemeCard::likeRequested, this, [this](const QString &id, const ThemeData &t) {
         onLikeClicked(id, t);

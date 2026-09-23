@@ -11,6 +11,58 @@
 #include <QStyle>
 #include <QLocale>
 #include <QSizePolicy>
+#include <QResizeEvent>
+#include <QShowEvent>
+#include <QFontMetrics>
+#include <QTextLayout>
+#include <QTextOption>
+#include <QTimer>
+
+namespace {
+
+// Height (px) reserved for the description label: exactly three lines of the
+// label's font.
+int descriptionHeight(const QFont &font)
+{
+    return QFontMetrics(font).lineSpacing() * 3;
+}
+
+// Wraps `text` to `width` and returns only the first `maxLines` lines, eliding
+// the last one with "…" when it would be clipped. Builds the result directly
+// (no intermediate list) so it is safe on COW/shared Qt containers.
+QString elideText(const QString &text, const QFont &font, int width, int maxLines)
+{
+    if (width <= 0 || maxLines <= 0)
+        return {};
+
+    QTextLayout layout(text, font);
+    QTextOption option;
+    option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+    layout.setTextOption(option);
+
+    QString result;
+    layout.beginLayout();
+    int lineIndex = 0;
+    while (true) {
+        QTextLine line = layout.createLine();
+        if (!line.isValid())
+            return result; // all text fits within maxLines; no elision needed
+
+        line.setLineWidth(width);
+        const QString lineText = text.mid(line.textStart(), line.textLength());
+
+        if (lineIndex == maxLines - 1) {
+            result += QFontMetrics(font).elidedText(lineText, Qt::ElideRight, width);
+            return result;
+        }
+
+        result += lineText;
+        result += QLatin1Char('\n');
+        ++lineIndex;
+    }
+}
+
+} // namespace
 
 ThemeCard::ThemeCard(const ThemeData &theme, QWidget *parent)
     : QFrame(parent)
@@ -20,7 +72,7 @@ ThemeCard::ThemeCard(const ThemeData &theme, QWidget *parent)
     setFrameShape(QFrame::NoFrame);
     setCursor(Qt::PointingHandCursor);
     setMinimumWidth(200);
-    setFixedHeight(320);
+    setFixedHeight(380);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
     auto *layout = new QVBoxLayout(this);
@@ -56,15 +108,17 @@ ThemeCard::ThemeCard(const ThemeData &theme, QWidget *parent)
         "font-size: 11px; color: #9a9aa2; background: transparent;");
     bodyLayout->addWidget(authorLabel);
 
-    auto *descLabel = new QLabel(m_theme.description.isEmpty()
+    m_descFullText = m_theme.description.isEmpty()
         ? m_theme.tags.join(QStringLiteral(" \u00B7 "))
-        : m_theme.description, body);
-    descLabel->setObjectName("themeDesc");
-    descLabel->setWordWrap(true);
-    descLabel->setMaximumHeight(40);
-    descLabel->setStyleSheet(
+        : m_theme.description;
+    m_descLabel = new QLabel(m_descFullText, body);
+    m_descLabel->setObjectName("themeDesc");
+    m_descLabel->setWordWrap(true);
+    m_descLabel->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    m_descLabel->setFixedHeight(descriptionHeight(m_descLabel->font()));
+    m_descLabel->setStyleSheet(
         "font-size: 11px; color: #c0c0c6; background: transparent;");
-    bodyLayout->addWidget(descLabel);
+    bodyLayout->addWidget(m_descLabel);
 
     auto *stats = new QHBoxLayout();
     stats->setSpacing(12);
@@ -113,6 +167,19 @@ ThemeCard::ThemeCard(const ThemeData &theme, QWidget *parent)
     m_installBtn = installBtn;
     btnRow->addWidget(installBtn);
 
+    auto *removeBtn = new QPushButton(QStringLiteral("Remove"), body);
+    removeBtn->setObjectName("removeBtn");
+    removeBtn->setCursor(Qt::ArrowCursor);
+    removeBtn->setMinimumHeight(30);
+    removeBtn->setVisible(false);
+    removeBtn->setStyleSheet(
+        "QPushButton { background: transparent; color: #f08080; border: 1px solid #b34a4a;"
+        " border-radius: 6px; font-weight: 600; padding: 0 10px; }"
+        "QPushButton:hover { background: #3a2727; }"
+        "QPushButton:pressed { background: #4a2f2f; }");
+    m_removeBtn = removeBtn;
+    btnRow->addWidget(removeBtn);
+
     if (m_theme.donateUrl.isValid() && !m_theme.donateUrl.isEmpty()) {
         QString supportText = m_theme.donationLabel.isEmpty()
             ? QStringLiteral("\u2764 Support") : m_theme.donationLabel;
@@ -139,6 +206,10 @@ ThemeCard::ThemeCard(const ThemeData &theme, QWidget *parent)
         emit installRequested(m_themeId, m_theme);
     });
 
+    connect(removeBtn, &QPushButton::clicked, this, [this]() {
+        emit removeRequested(m_themeId, m_theme);
+    });
+
     connect(likeBtn, &QPushButton::clicked, this, [this]() {
         emit likeRequested(m_themeId, m_theme);
     });
@@ -157,8 +228,36 @@ void ThemeCard::setInstalled(bool installed)
         return;
 
     m_installed = installed;
-    m_installBtn->setEnabled(!installed);
-    m_installBtn->setText(installed ? QStringLiteral("Installed") : QStringLiteral("Install"));
+    m_installBtn->setVisible(!installed);
+    m_removeBtn->setVisible(installed);
+}
+
+void ThemeCard::resizeEvent(QResizeEvent *event)
+{
+    QFrame::resizeEvent(event);
+    updateDescriptionElision();
+}
+
+void ThemeCard::showEvent(QShowEvent *event)
+{
+    QFrame::showEvent(event);
+    // The first resizeEvent can fire before the layout assigns the label a
+    // real width; defer so the description elides against its final width.
+    QTimer::singleShot(0, this, [this]() {
+        updateDescriptionElision();
+    });
+}
+
+void ThemeCard::updateDescriptionElision()
+{
+    if (!m_descLabel)
+        return;
+
+    const int width = m_descLabel->width();
+    if (width <= 0)
+        return; // not laid out yet; keep the text as-is
+
+    m_descLabel->setText(elideText(m_descFullText, m_descLabel->font(), width, 3));
 }
 
 void ThemeCard::setThumbnailFailed()

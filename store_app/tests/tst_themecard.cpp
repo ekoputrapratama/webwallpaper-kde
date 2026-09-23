@@ -4,6 +4,8 @@
 #include <QLabel>
 #include <QPixmap>
 #include <QPushButton>
+#include <QTextLayout>
+#include <QTextOption>
 
 #include "themecard.h"
 
@@ -32,22 +34,69 @@ class TestThemeCard : public QObject
     Q_OBJECT
 
 private slots:
-    void installButtonTogglesWithInstalledState()
+    void installButtonVisibleOnlyWhenNotInstalled()
     {
         ThemeCard card(makeTheme());
         auto *btn = card.findChild<QPushButton *>(QStringLiteral("installBtn"));
         QVERIFY(btn);
 
         QCOMPARE(btn->text(), QStringLiteral("Install"));
-        QVERIFY(btn->isEnabled());
+        QVERIFY(!btn->isHidden());
 
         card.setInstalled(true);
-        QCOMPARE(btn->text(), QStringLiteral("Installed"));
-        QVERIFY(!btn->isEnabled());
+        QVERIFY(btn->isHidden());
 
         card.setInstalled(false);
-        QCOMPARE(btn->text(), QStringLiteral("Install"));
-        QVERIFY(btn->isEnabled());
+        QVERIFY(!btn->isHidden());
+    }
+
+    void removeButtonVisibleOnlyWhenInstalled()
+    {
+        ThemeCard card(makeTheme());
+        auto *btn = card.findChild<QPushButton *>(QStringLiteral("removeBtn"));
+        QVERIFY(btn);
+
+        // The card is never shown in the test, so isVisible() is always false;
+        // isHidden() reflects the explicit setVisible() state instead.
+        QVERIFY(btn->isHidden());
+
+        card.setInstalled(true);
+        QVERIFY(!btn->isHidden());
+
+        card.setInstalled(false);
+        QVERIFY(btn->isHidden());
+    }
+
+    void descriptionIsFixedToThreeLines()
+    {
+        ThemeCard card(makeTheme());
+        auto *label = card.findChild<QLabel *>(QStringLiteral("themeDesc"));
+        QVERIFY(label);
+
+        const int expected = QFontMetrics(label->font()).lineSpacing() * 3;
+        QCOMPARE(label->height(), expected);
+        QCOMPARE(label->maximumHeight(), label->height());
+        QCOMPARE(label->minimumHeight(), label->height());
+    }
+
+    void longDescriptionIsElidedWithEllipsis()
+    {
+        ThemeData theme = makeTheme();
+        theme.description = QString(
+            "A very long description that absolutely will not fit into three "
+            "lines of a compact theme card. It keeps going and going and going "
+            "and going and going and going long enough to overflow.");
+        ThemeCard card(theme);
+        card.resize(240, 320);
+        card.show();
+        QCoreApplication::processEvents();
+
+        auto *label = card.findChild<QLabel *>(QStringLiteral("themeDesc"));
+        QVERIFY(label);
+
+        QString shown = label->text();
+        QVERIFY(shown.size() < theme.description.size());
+        QVERIFY(shown.contains(QStringLiteral("\u2026")));
     }
 
     void likeButtonUpdatesTheCountLabel()

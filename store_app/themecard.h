@@ -8,6 +8,8 @@
 class QVBoxLayout;
 class QBuffer;
 class QMovie;
+class QResizeEvent;
+class QShowEvent;
 
 class ThemeCard : public QFrame
 {
@@ -26,14 +28,23 @@ public:
 
 signals:
     void installRequested(const QString &themeId, const ThemeData &theme);
+    void removeRequested(const QString &themeId, const ThemeData &theme);
     void donateRequested(const QUrl &url);
     void likeRequested(const QString &themeId, const ThemeData &theme);
 
+protected:
+    void resizeEvent(QResizeEvent *event) override;
+    void showEvent(QShowEvent *event) override;
+
 private:
     void clearMovie();
+    void updateDescriptionElision();
 
     QLabel *m_thumbnailLabel;
+    QLabel *m_descLabel;
+    QString m_descFullText;
     QPushButton *m_installBtn;
+    QPushButton *m_removeBtn;
     QPushButton *m_likeBtn;
     QLabel *m_likeLabel;
     QByteArray m_thumbnailData;
