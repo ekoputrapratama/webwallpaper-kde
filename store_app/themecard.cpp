@@ -52,7 +52,15 @@ QString elideText(const QString &text, const QFont &font, int width, int maxLine
         const QString lineText = text.mid(line.textStart(), line.textLength());
 
         if (lineIndex == maxLines - 1) {
-            result += QFontMetrics(font).elidedText(lineText, Qt::ElideRight, width);
+            // If the layout can still produce another line, the text is being
+            // truncated and the last visible line must end with an ellipsis.
+            // Elide with "…" appended explicitly so the marker is always
+            // emitted, even if that line happens to fit `width` on its own.
+            if (layout.createLine().isValid())
+                result += QFontMetrics(font).elidedText(
+                    lineText + QStringLiteral("\u2026"), Qt::ElideRight, width);
+            else
+                result += lineText;
             return result;
         }
 
