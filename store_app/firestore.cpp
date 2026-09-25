@@ -16,7 +16,6 @@ ThemeData parseTheme(const QJsonObject &fields)
     theme.thumbnailUrl = QUrl(str("thumbnail_url"));
     theme.downloadUrl = QUrl(str("wallpaper_url"));
     theme.donateUrl = QUrl(str("donation_url"));
-    theme.donationLabel = str("donation_label");
     theme.uid = str("uid");
     theme.downloads = fields[QStringLiteral("downloads")].toObject()[QStringLiteral("integerValue")].toString().toLongLong();
     theme.likes = fields[QStringLiteral("likes")].toObject()[QStringLiteral("integerValue")].toString().toLongLong();

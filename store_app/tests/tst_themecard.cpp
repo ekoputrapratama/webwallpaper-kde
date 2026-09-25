@@ -172,11 +172,10 @@ private slots:
         QVERIFY(!noDonate.findChild<QPushButton *>(QStringLiteral("donateBtn")));
 
         theme.donateUrl = QUrl(QStringLiteral("https://ko-fi.com/test"));
-        theme.donationLabel = QStringLiteral("Support me on Ko-fi");
         ThemeCard donate(theme);
         auto *btn = donate.findChild<QPushButton *>(QStringLiteral("donateBtn"));
         QVERIFY(btn);
-        QCOMPARE(btn->text(), QStringLiteral("Support me on Ko-fi"));
+        QCOMPARE(btn->text(), QStringLiteral("Donate"));
     }
 
     // Guards a real regression: the install/download counts are rendered from

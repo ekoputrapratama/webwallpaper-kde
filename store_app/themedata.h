@@ -14,7 +14,6 @@ struct ThemeData {
     QUrl thumbnailUrl;   // thumbnail_url
     QUrl downloadUrl;    // wallpaper_url (zip)
     QUrl donateUrl;      // donation_url
-    QString donationLabel;
     qint64 downloads = 0;
     qint64 likes = 0;
     QString uid;

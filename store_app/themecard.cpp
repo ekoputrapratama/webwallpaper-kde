@@ -189,9 +189,7 @@ ThemeCard::ThemeCard(const ThemeData &theme, QWidget *parent)
     btnRow->addWidget(removeBtn);
 
     if (m_theme.donateUrl.isValid() && !m_theme.donateUrl.isEmpty()) {
-        QString supportText = m_theme.donationLabel.isEmpty()
-            ? QStringLiteral("\u2764 Support") : m_theme.donationLabel;
-        auto *donateBtn = new QPushButton(supportText, body);
+        auto *donateBtn = new QPushButton(QStringLiteral("Donate"), body);
         donateBtn->setObjectName("donateBtn");
         donateBtn->setCursor(Qt::ArrowCursor);
         donateBtn->setMinimumHeight(30);

@@ -16,6 +16,9 @@
 #include <QProcessEnvironment>
 #include <QApplication>
 #include <QMessageBox>
+#include <QTimer>
+#include <QMap>
+#include <QWheelEvent>
 
 StoreWindow::StoreWindow(NetworkManager *netMgr, ConfigManager *config, QWidget *parent)
     : QDialog(parent)
@@ -58,6 +61,53 @@ StoreWindow::StoreWindow(NetworkManager *netMgr, ConfigManager *config, QWidget 
     m_refreshBtn = new QPushButton("Refresh", this);
     header->addWidget(m_refreshBtn);
     outer->addLayout(header);
+
+    // Search bar
+    m_searchEdit = new QLineEdit(this);
+    m_searchEdit->setPlaceholderText(QStringLiteral("Search themes by name, author or tag..."));
+    m_searchEdit->setClearButtonEnabled(true);
+    m_searchEdit->setStyleSheet(
+        "QLineEdit { background: #26262c; color: #f2f2f4; border: 1px solid #33333a;"
+        " border-radius: 6px; padding: 8px 12px; font-size: 13px; }"
+        "QLineEdit:focus { border-color: #3d7eff; }");
+    outer->addWidget(m_searchEdit);
+
+    // Tag filter strip
+    auto *tagRow = new QHBoxLayout();
+    auto *tagLabel = new QLabel(QStringLiteral("Tags:"), this);
+    tagLabel->setStyleSheet("color: #9a9aa2; font-size: 12px;");
+    tagRow->addWidget(tagLabel, 0, Qt::AlignVCenter);
+
+    auto *tagScroll = new QScrollArea(this);
+    tagScroll->setWidgetResizable(true);
+    tagScroll->setFrameShape(QFrame::NoFrame);
+    tagScroll->setFixedHeight(38);
+    tagScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    tagScroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    tagScroll->setStyleSheet(
+        "QScrollBar:horizontal { background: #1c1c21; height: 6px; margin: 2px 0; }"
+        "QScrollBar::handle:horizontal { background: #44444c; border-radius: 3px; min-width: 40px; }"
+        "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }"
+        "QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: transparent; }");
+
+    m_tagStripHost = new QWidget();
+    m_tagStrip = new QHBoxLayout(m_tagStripHost);
+    m_tagStrip->setContentsMargins(0, 0, 0, 0);
+    m_tagStrip->setSpacing(6);
+    tagScroll->setWidget(m_tagStripHost);
+    tagRow->addWidget(tagScroll, 1);
+    m_tagScroll = tagScroll;
+    m_tagScroll->viewport()->installEventFilter(this);
+    m_tagStripHost->installEventFilter(this);
+
+    m_clearFiltersBtn = new QPushButton(QStringLiteral("Clear"), this);
+    m_clearFiltersBtn->setVisible(false);
+    m_clearFiltersBtn->setStyleSheet(
+        "QPushButton { background: transparent; color: #e05a7a; border: none;"
+        " font-size: 12px; font-weight: 600; padding: 4px 8px; }");
+    tagRow->addWidget(m_clearFiltersBtn, 0, Qt::AlignVCenter);
+
+    outer->addLayout(tagRow);
 
     m_statusLabel = new QLabel("Loading themes...", this);
     m_statusLabel->setStyleSheet("color: #b0b0b8;");
@@ -102,6 +152,13 @@ StoreWindow::StoreWindow(NetworkManager *netMgr, ConfigManager *config, QWidget 
     outer->addWidget(m_progressBar);
 
     connect(m_refreshBtn, &QPushButton::clicked, this, &StoreWindow::onFetchThemes);
+    connect(m_searchEdit, &QLineEdit::textChanged, this, &StoreWindow::onSearchChanged);
+    connect(m_clearFiltersBtn, &QPushButton::clicked, this, &StoreWindow::onClearFilters);
+
+    m_searchDebounce = new QTimer(this);
+    m_searchDebounce->setSingleShot(true);
+    m_searchDebounce->setInterval(250);
+    connect(m_searchDebounce, &QTimer::timeout, this, &StoreWindow::applyFilter);
     connect(m_wallpaperSettingsBtn, &QPushButton::clicked, this, []() {
         // Guarantee the WebWallpaper QML module is importable by the child,
         // regardless of how the store itself was launched (could be from a
@@ -141,8 +198,36 @@ StoreWindow::StoreWindow(NetworkManager *netMgr, ConfigManager *config, QWidget 
 
     connect(m_scrollArea->verticalScrollBar(), &QScrollBar::rangeChanged,
             this, &StoreWindow::onScrollRangeChanged);
+    connect(m_scrollArea->verticalScrollBar(), &QScrollBar::valueChanged,
+            this, &StoreWindow::refreshVisibleCards);
 
     onFetchThemes();
+}
+
+void StoreWindow::resizeEvent(QResizeEvent *event)
+{
+    QDialog::resizeEvent(event);
+    refreshVisibleCards();
+}
+
+bool StoreWindow::eventFilter(QObject *watched, QEvent *event)
+{
+    if (m_tagScroll
+        && (watched == m_tagScroll->viewport() || watched == m_tagStripHost)
+        && event->type() == QEvent::Wheel) {
+        auto *we = static_cast<QWheelEvent *>(event);
+        // Route vertical wheel motion to the horizontal tag strip so scrolling
+        // over the tags doesn't scroll the theme grid underneath.
+        QScrollBar *hbar = m_tagScroll->horizontalScrollBar();
+        if (hbar && hbar->minimum() < hbar->maximum()) {
+            const int delta = we->angleDelta().y() != 0
+                ? we->angleDelta().y()
+                : we->angleDelta().x();
+            hbar->setValue(hbar->value() - delta);
+            return true;
+        }
+    }
+    return QDialog::eventFilter(watched, event);
 }
 
 void StoreWindow::onFetchThemes()
@@ -165,6 +250,7 @@ void StoreWindow::onFetchThemes()
     m_page = 0;
     m_themeIdByThumbUrl.clear();
     m_themeDocPath.clear();
+    applyFilter();
     m_netMgr->fetchThemeList(apiKey, projectId, databaseId, m_pageSize);
 }
 
@@ -173,7 +259,7 @@ void StoreWindow::onThemePageReceived(const QJsonDocument &doc, const QString &n
     setBusy(false);
 
     const QJsonArray documents = doc["documents"].toArray();
-    const int prevCount = m_cards.size();
+    const int prevCount = m_themeEntries.size();
 
     for (const auto &val : documents) {
         QJsonObject obj = val.toObject();
@@ -192,39 +278,43 @@ void StoreWindow::onThemePageReceived(const QJsonDocument &doc, const QString &n
         if (theme.thumbnailUrl.isValid())
             m_themeIdByThumbUrl.insert(theme.thumbnailUrl, themeId);
 
-        addCard(themeId, theme);
+        m_themeEntries.append({themeId, theme});
     }
 
     m_nextPageToken = nextPageToken;
     m_hasMorePages = !nextPageToken.isEmpty();
     m_page++;
 
+    collectAvailableTags();
+    applyFilter();
+
     // Refresh the bottom indicator: visible "Loading more..." while there's a
     // next page, "End of list" when exhausted. It stays hidden if content
     // doesn't fill the viewport yet (auto-load happens below).
     m_loadingMore = false;
     if (m_loadingMoreLabel) {
-        bool exhausted = !m_hasMorePages && !m_cards.isEmpty();
+        bool exhausted = !m_hasMorePages && !m_themeEntries.isEmpty();
         m_loadingMoreLabel->setVisible(exhausted);
         if (exhausted)
             m_loadingMoreLabel->setText(QStringLiteral("End of list"));
     }
 
-    // Fetch thumbnails for new cards only
-    for (int i = prevCount; i < m_cards.size(); ++i) {
-        if (m_cards[i]->themeData().thumbnailUrl.isValid())
-            m_netMgr->fetchImage(m_cards[i]->themeData().thumbnailUrl);
-    }
+    refreshVisibleCards();
 
-    if (prevCount == 0 && m_cards.isEmpty()) {
+    if (prevCount == 0 && m_themeEntries.isEmpty()) {
         m_statusLabel->setText(QString("No themes published yet (%1 docs scanned).").arg(documents.size()));
         m_layoutHint->setVisible(true);
-    } else {
-        m_statusLabel->setText(QStringLiteral("%1 themes loaded.").arg(m_cards.size()));
+    } else if (!m_filteredIndices.isEmpty()) {
         m_layoutHint->setVisible(false);
+        if (filterActive())
+            m_statusLabel->setText(QStringLiteral("%1 matching themes.").arg(m_filteredIndices.size()));
+        else
+            m_statusLabel->setText(QStringLiteral("%1 themes loaded.").arg(m_themeEntries.size()));
     }
 
-    if (m_hasMorePages && shouldLoadMore())
+    // While a filter is active, keep pulling pages so the result set is
+    // complete instead of only covering what the user has scrolled through.
+    if (m_hasMorePages && (filterActive() || shouldLoadMore()))
         fetchNextPage();
 }
 
@@ -236,6 +326,8 @@ void StoreWindow::onFetchError(const QString &error)
 
 void StoreWindow::onImageFetched(const QUrl &url, const QByteArray &data)
 {
+    m_thumbnailCache.insert(url, data); // reuse instantly when the card is re-materialized
+
     QString id = m_themeIdByThumbUrl.value(url);
     if (id.isEmpty())
         return;
@@ -368,11 +460,11 @@ bool StoreWindow::isInstalled(const QString &themeId) const
     return !themes.isEmpty();
 }
 
-void StoreWindow::addCard(const QString &themeId, const ThemeData &theme)
+ThemeCard *StoreWindow::createCardForIndex(int index, const ThemeEntry &entry)
 {
-    auto *card = new ThemeCard(theme, m_gridHost);
-    card->setThemeId(themeId);
-    card->setInstalled(isInstalled(themeId));
+    auto *card = new ThemeCard(entry.theme, m_gridHost);
+    card->setThemeId(entry.themeId);
+    card->setInstalled(isInstalled(entry.themeId));
 
     connect(card, &ThemeCard::installRequested,
             this, [this](const QString &id, const ThemeData &t) {
@@ -388,7 +480,6 @@ void StoreWindow::addCard(const QString &themeId, const ThemeData &theme)
         onLikeClicked(id, t);
     });
 
-    int index = m_cards.size();
     int row = index / m_columns;
     int col = index % m_columns;
     m_grid->addWidget(card, row, col);
@@ -396,6 +487,70 @@ void StoreWindow::addCard(const QString &themeId, const ThemeData &theme)
     // fills the full scroll area width instead of leaving unused space on the right.
     m_grid->setColumnStretch(col, 1);
     m_cards.append(card);
+    m_cardByIndex.insert(index, card);
+
+    // Thumbnails are cheap to serve from the in-memory cache; otherwise the
+    // NetworkManager pulls from its on-disk cache or the network (one at a time).
+    const QUrl thumbUrl = entry.theme.thumbnailUrl;
+    if (thumbUrl.isValid()) {
+        const QByteArray cached = m_thumbnailCache.value(thumbUrl);
+        if (!cached.isEmpty()) {
+            card->setThumbnail(cached);
+        } else {
+            m_netMgr->fetchImage(thumbUrl);
+        }
+    }
+
+    return card;
+}
+
+void StoreWindow::refreshVisibleCards()
+{
+    if (m_refreshingWindow)
+        return;
+    m_refreshingWindow = true;
+
+    const int total = m_filteredIndices.size();
+    if (total == 0) {
+        m_refreshingWindow = false;
+        return;
+    }
+
+    QScrollBar *bar = m_scrollArea->verticalScrollBar();
+    const int rowHeight = m_cardHeight + m_cardSpacing;
+    const int viewH = m_scrollArea->viewport()->height();
+    const int scroll = bar->value();
+
+    // Materialize a couple of rows above and below the visible viewport so
+    // scrolling ahead stays smooth while thumbnails/movies load.
+    const int bufferRows = 2;
+    const int firstRow = qMax(0, scroll / rowHeight - bufferRows);
+    const int lastRow = qMin((scroll + viewH) / rowHeight + bufferRows,
+                             (total - 1) / m_columns);
+    const int firstIndex = firstRow * m_columns;
+    const int lastIndex = lastRow * m_columns + (m_columns - 1);
+
+    // Reap cards that scrolled out of range.
+    for (auto it = m_cardByIndex.begin(); it != m_cardByIndex.end();) {
+        const int idx = it.key();
+        if (idx < firstIndex || idx > lastIndex) {
+            ThemeCard *card = it.value();
+            m_grid->removeWidget(card);
+            card->deleteLater();
+            m_cards.removeOne(card);
+            it = m_cardByIndex.erase(it);
+        } else {
+            ++it;
+        }
+    }
+
+    // Materialize any visible card that isn't created yet.
+    for (int pos = firstIndex; pos <= lastIndex; ++pos) {
+        if (pos < total && !m_cardByIndex.contains(pos))
+            createCardForIndex(pos, m_themeEntries[m_filteredIndices[pos]]);
+    }
+
+    m_refreshingWindow = false;
 }
 
 void StoreWindow::clearGrid()
@@ -405,9 +560,183 @@ void StoreWindow::clearGrid()
         card->deleteLater();
     }
     m_cards.clear();
+    m_cardByIndex.clear();
+    m_themeEntries.clear();
+    m_themeIdByThumbUrl.clear();
+    m_filteredIndices.clear();
+    m_selectedTags.clear();
+    m_clearFiltersBtn->setVisible(false);
+
+    while (m_tagStrip->count() > 0) {
+        QLayoutItem *item = m_tagStrip->takeAt(0);
+        delete item->widget();
+        delete item;
+    }
+    m_tagButtons.clear();
+
     m_layoutHint->setVisible(false);
     if (m_loadingMoreLabel)
         m_loadingMoreLabel->setVisible(false);
+}
+
+bool StoreWindow::filterActive() const
+{
+    return !m_searchEdit->text().trimmed().isEmpty() || !m_selectedTags.isEmpty();
+}
+
+bool StoreWindow::matchesFilter(const ThemeEntry &entry) const
+{
+    const QString needle = m_searchEdit->text().trimmed().toLower();
+    if (!needle.isEmpty()) {
+        const ThemeData &t = entry.theme;
+        QString haystack = t.name.toLower();
+        haystack += QLatin1Char(' ') + t.author.toLower();
+        haystack += QLatin1Char(' ') + t.tags.join(QLatin1Char(' ')).toLower();
+        if (!haystack.contains(needle))
+            return false;
+    }
+
+    if (!m_selectedTags.isEmpty()) {
+        for (const QString &tag : std::as_const(m_selectedTags)) {
+            if (!entry.theme.tags.contains(tag))
+                return false;
+        }
+    }
+
+    return true;
+}
+
+void StoreWindow::collectAvailableTags()
+{
+    // Accumulate into a sorted map (QMap) to sidestep Qt 6 COW container
+    // asserts that fire inside QSet::values()/QList::reserve on this build.
+    QMap<QString, bool> known;
+    for (const ThemeEntry &entry : m_themeEntries) {
+        for (const QString &tag : entry.theme.tags)
+            known.insert(tag, true);
+    }
+
+    const int want = known.size();
+    const bool changed = (m_tagStrip->count() - 1) != want; // last item is a stretch
+    if (!changed)
+        return;
+
+    while (m_tagStrip->count() > 0) {
+        QLayoutItem *item = m_tagStrip->takeAt(0);
+        delete item->widget();
+        delete item;
+    }
+
+    m_tagButtons.clear();
+    for (auto it = known.constBegin(); it != known.constEnd(); ++it) {
+        const QString tag = it.key();
+        auto *btn = new QPushButton(tag, m_tagStripHost);
+        btn->setCheckable(true);
+        btn->setChecked(m_selectedTags.contains(tag));
+        btn->setCursor(Qt::PointingHandCursor);
+        btn->setFixedHeight(26);
+        btn->setStyleSheet(
+            "QPushButton { background: transparent; color: #c0c0c6; border: 1px solid #3a3a42;"
+            " border-radius: 13px; padding: 0 12px; font-size: 12px; }"
+            "QPushButton:hover { border-color: #7aa2f7; color: #f2f2f4; }"
+            "QPushButton:checked { background: #22304a; color: #7aa2f7; border-color: #3d7eff; }");
+        connect(btn, &QPushButton::toggled, this, &StoreWindow::onTagToggled);
+        m_tagStrip->addWidget(btn);
+        m_tagButtons.append(btn);
+    }
+    m_tagStrip->addStretch();
+
+    // Let the strip host report its full content width so the scroll area
+    // shows a horizontal scrollbar when the tags overflow the viewport.
+    m_tagStripHost->setMinimumWidth(m_tagStrip->sizeHint().width());
+}
+
+void StoreWindow::rebuildTagButtons()
+{
+    // Drop any selection that no longer exists in the catalog, then re-render.
+    for (QSet<QString>::iterator it = m_selectedTags.begin(); it != m_selectedTags.end();) {
+        bool exists = false;
+        for (const ThemeEntry &entry : m_themeEntries) {
+            if (entry.theme.tags.contains(*it)) {
+                exists = true;
+                break;
+            }
+        }
+        if (!exists)
+            it = m_selectedTags.erase(it);
+        else
+            ++it;
+    }
+    while (m_tagStrip->count() > 0) {
+        QLayoutItem *item = m_tagStrip->takeAt(0);
+        delete item->widget();
+        delete item;
+    }
+    m_tagButtons.clear();
+    m_tagStripHost->setMinimumWidth(0);
+
+    collectAvailableTags();
+    m_clearFiltersBtn->setVisible(filterActive());
+}
+
+void StoreWindow::applyFilter()
+{
+    m_filteredIndices.clear();
+    for (int i = 0; i < m_themeEntries.size(); ++i) {
+        if (matchesFilter(m_themeEntries[i]))
+            m_filteredIndices.append(i);
+    }
+
+    // Positions shifted -> drop every materialized card and re-window.
+    for (ThemeCard *card : m_cards) {
+        m_grid->removeWidget(card);
+        card->deleteLater();
+    }
+    m_cards.clear();
+    m_cardByIndex.clear();
+
+    m_clearFiltersBtn->setVisible(filterActive());
+    m_layoutHint->setVisible(m_filteredIndices.isEmpty());
+    if (m_filteredIndices.isEmpty())
+        m_statusLabel->setText(QStringLiteral("No themes match."));
+    else
+        m_statusLabel->setText(QStringLiteral("%1 of %2 themes.").arg(m_filteredIndices.size()).arg(m_themeEntries.size()));
+
+    if (m_scrollArea->verticalScrollBar()->maximum() > 0)
+        m_scrollArea->verticalScrollBar()->setValue(0);
+
+    refreshVisibleCards();
+}
+
+void StoreWindow::onSearchChanged()
+{
+    m_searchDebounce->start();
+}
+
+void StoreWindow::onTagToggled(bool checked)
+{
+    auto *btn = qobject_cast<QPushButton *>(sender());
+    if (!btn)
+        return;
+    if (checked)
+        m_selectedTags.insert(btn->text());
+    else
+        m_selectedTags.remove(btn->text());
+    applyFilter();
+
+    // While filtering, pull the remaining pages so results are complete.
+    if (m_hasMorePages && !m_loadingMore)
+        fetchNextPage();
+}
+
+void StoreWindow::onClearFilters()
+{
+    m_selectedTags.clear();
+    m_searchEdit->clear();
+    m_clearFiltersBtn->setVisible(false);
+    for (QPushButton *btn : m_tagButtons)
+        btn->setChecked(false);
+    applyFilter();
 }
 
 void StoreWindow::setBusy(bool busy)
@@ -462,6 +791,7 @@ void StoreWindow::onScrollRangeChanged(int min, int max)
 {
     Q_UNUSED(min);
     Q_UNUSED(max);
+    refreshVisibleCards();
     if (shouldLoadMore())
         fetchNextPage();
 }

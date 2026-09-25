@@ -44,7 +44,6 @@ private slots:
             {QStringLiteral("thumbnail_url"), stringField(QStringLiteral("https://example.test/sakura.gif"))},
             {QStringLiteral("wallpaper_url"), stringField(QStringLiteral("https://example.test/sakura.zip"))},
             {QStringLiteral("donation_url"), stringField(QStringLiteral("https://ko-fi.com/test"))},
-            {QStringLiteral("donation_label"), stringField(QStringLiteral("Support me on Ko-fi"))},
             {QStringLiteral("downloads"), integerField(12)},
             {QStringLiteral("likes"), integerField(7)},
             {QStringLiteral("uid"), stringField(QStringLiteral("u123"))},
@@ -59,7 +58,6 @@ private slots:
         QCOMPARE(theme.thumbnailUrl, QUrl(QStringLiteral("https://example.test/sakura.gif")));
         QCOMPARE(theme.downloadUrl, QUrl(QStringLiteral("https://example.test/sakura.zip")));
         QCOMPARE(theme.donateUrl, QUrl(QStringLiteral("https://ko-fi.com/test")));
-        QCOMPARE(theme.donationLabel, QStringLiteral("Support me on Ko-fi"));
         QCOMPARE(theme.downloads, qint64(12));
         QCOMPARE(theme.likes, qint64(7));
         QCOMPARE(theme.uid, QStringLiteral("u123"));
