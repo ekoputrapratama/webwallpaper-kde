@@ -68,6 +68,34 @@ bool WindowMonitor::hasFullscreenWindow() const
 #endif
 }
 
+QRect WindowMonitor::screenGeometry() const
+{
+    return m_screenGeometry;
+}
+
+void WindowMonitor::setScreenGeometry(const QRect &rect)
+{
+    if (rect == m_screenGeometry) {
+        return;
+    }
+    m_screenGeometry = rect;
+    emit screenGeometryChanged();
+#ifdef Q_OS_LINUX
+    if (m_isX11) {
+        rescan();
+    } else if (m_management) {
+        recheckAll();
+    }
+#endif
+}
+
+// A fullscreen window fills its output, so its center identifies the output
+// even when the compositor reports a frame that spills over a neighbour.
+bool WindowMonitor::isOnScreen(const QRect &windowGeometry) const
+{
+    return m_screenGeometry.isNull() || m_screenGeometry.contains(windowGeometry.center());
+}
+
 void WindowMonitor::setFullscreen(bool fs)
 {
     if (fs) {
@@ -97,7 +125,7 @@ void WindowMonitor::setupX11()
             this, [this](WId) { rescan(); });
     connect(KX11Extras::self(), &KX11Extras::windowChanged,
             this, [this](WId, NET::Properties props, NET::Properties2) {
-        if (props & NET::WMState) {
+        if (props & (NET::WMState | NET::WMGeometry)) {
             rescan();
         }
     });
@@ -109,14 +137,14 @@ void WindowMonitor::rescan()
     QSet<quintptr> current;
     const auto windows = KX11Extras::windows();
     for (WId wid : windows) {
-        KWindowInfo info(wid, NET::WMState | NET::WMWindowType);
+        KWindowInfo info(wid, NET::WMState | NET::WMWindowType | NET::WMFrameExtents);
         if (!info.valid()) {
             continue;
         }
         if (info.windowType(NET::AllTypesMask) == NET::Desktop) {
             continue;
         }
-        if (info.state() & NET::FullScreen) {
+        if ((info.state() & NET::FullScreen) && isOnScreen(info.frameGeometry())) {
             current.insert(static_cast<quintptr>(wid));
         }
     }
@@ -183,6 +211,12 @@ void WindowMonitor::trackWindow(KWayland::Client::PlasmaWindow *window)
 
     connect(window, &KWayland::Client::PlasmaWindow::fullscreenChanged,
             this, &WindowMonitor::onWindowFullscreenChanged);
+    connect(window, &KWayland::Client::PlasmaWindow::geometryChanged,
+            this, [this, window]() {
+        if (window->isFullscreen()) {
+            recheckAll();
+        }
+    });
     connect(window, &KWayland::Client::PlasmaWindow::unmapped,
             this, [this, window]() {
         m_windows.remove(window);
@@ -199,7 +233,7 @@ void WindowMonitor::recheckAll()
 {
     bool rawFs = false;
     for (auto *w : m_windows) {
-        if (w->isFullscreen()) {
+        if (w->isFullscreen() && isOnScreen(w->geometry())) {
             wmLog(QStringLiteral("WindowMonitor: fullscreen window: %1").arg(w->appId()));
             rawFs = true;
             break;
