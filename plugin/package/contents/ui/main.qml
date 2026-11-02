@@ -118,6 +118,8 @@ WallpaperItem {
 
     WindowMonitor {
         id: windowMonitor
+        // Pause only for a fullscreen window on this wallpaper's own screen.
+        screenGeometry: Qt.rect(Screen.virtualX, Screen.virtualY, Screen.width, Screen.height)
     }
 
     Timer {

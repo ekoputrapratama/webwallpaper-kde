@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QObject>
+#include <QRect>
 #include <QSet>
 #include <QTimer>
 #include <QPointer>
@@ -19,18 +20,25 @@ class WindowMonitor : public QObject
     QML_ELEMENT
 
     Q_PROPERTY(bool hasFullscreenWindow READ hasFullscreenWindow NOTIFY hasFullscreenWindowChanged)
+    // Global-coordinate rect of the screen this wallpaper draws on. A null rect
+    // counts fullscreen windows on every screen.
+    Q_PROPERTY(QRect screenGeometry READ screenGeometry WRITE setScreenGeometry NOTIFY screenGeometryChanged)
 
 public:
     explicit WindowMonitor(QObject *parent = nullptr);
     ~WindowMonitor() override;
 
     bool hasFullscreenWindow() const;
+    QRect screenGeometry() const;
+    void setScreenGeometry(const QRect &rect);
 
 signals:
     void hasFullscreenWindowChanged();
+    void screenGeometryChanged();
 
 private:
     void rescan();
+    bool isOnScreen(const QRect &windowGeometry) const;
     void setFullscreen(bool fs);
 
     // X11
@@ -49,6 +57,7 @@ private:
     bool m_hasFullscreen = false;
     bool m_rawFullscreen = false;
     QTimer m_resumeDebounce;
+    QRect m_screenGeometry;
 
 private slots:
     void onRegistryCreated(quint32 name, quint32 version);
